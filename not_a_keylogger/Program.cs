@@ -19,8 +19,7 @@ namespace not_a_keylogger
         private static void printHelp()
         {
             Console.WriteLine(
-                @"
-not_a_keylogger V0.1
+                @"not_a_keylogger V0.1
     this application listens to keys and performs actions when pressed/released, could be used as a simple keylogger
 
 usage: 
@@ -29,22 +28,24 @@ not_a_keylogger.exe --help
     -> shows this screen
 not_a_keylogger.exe --list
     -> lists all key names
-not_a_keylogger.exe --bind [key] [released/pressed] [action]
+not_a_keylogger.exe --bind [key] [released/pressed] [action] [arguments]
     -> binds the specific key up/down event to an program to launch
 example:
     "
-     + "-> not_a_keylogger.exe --bind VOLUME_MUTE DOWN \"C:\\apps\\mute.exe\"");
+     + "-> not_a_keylogger.exe --bind VOLUME_MUTE DOWN \"C:\\apps\\mute.exe\" \" \"");
         }
         private static (bool valid, Action onInvalid) checkArguments(string[] args)
         {
+            if (args.Length == 0) return (false, printHelp);
             if (args.Length == 1 & args[0] == "--list") return (false, printUserKeys);
-            if (args.Length < 4 | (args.Length % 4) != 0) return (false, printHelp);
+            if (args.Length < 5 | (args.Length % 5) != 0) return (false, printHelp);
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i++].ToLower() != "--bind") return (false, printHelp);
                 if (!chars.ContainsKey((UserKeys)Enum.Parse(typeof(UserKeys), args[i++].ToUpper()))) return (false, printHelp);
                 if (!Enum.GetNames(typeof(KeyState)).Contains(args[i++].ToUpper())) return (false, printHelp);
-                if (!File.Exists(args[i])) return (false, printHelp);
+                i++; // if (!File.Exists(args[i++])) return (false, printHelp); // doesn't search PATH
+                i++; // parameters can be anything
             }
             return (true, null);
         }
@@ -62,14 +63,16 @@ example:
                 i++;
                 UserKeys key = (UserKeys)Enum.Parse(typeof(UserKeys), args[i++]);
                 KeyState state = (KeyState)Enum.Parse(typeof(KeyState), args[i++].ToUpper());
-                string filepath = args[i];
+                string filepath = args[i++];
+                string arguments = args[i++];
                 var binding = bindings.ContainsKey(key) ? bindings[key] : ((null, null), new ChangeResponder<UserKeys>(key));
                 Process process = new Process()
                 {
                     StartInfo = new ProcessStartInfo() 
                     { 
                         FileName = filepath, 
-                        WorkingDirectory = new FileInfo(filepath).DirectoryName 
+                        WorkingDirectory = new FileInfo(filepath).DirectoryName, 
+                        Arguments = arguments
                     }
                 };
                 switch (state) {
