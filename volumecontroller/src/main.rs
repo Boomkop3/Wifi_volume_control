@@ -3,18 +3,18 @@ use isahc::HttpClient;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if  args.len() != 2 {
+    if  args.len() != 3 {
         print_help();
         return;
     }
     match args[1].as_str() {
-        "UP" => change_volume(VolumeDirection::UP).unwrap(), 
-        "DOWN" => change_volume(VolumeDirection::DOWN).unwrap(), 
+        "UP" => change_volume(VolumeDirection::UP, args[2].as_str()).unwrap(), 
+        "DOWN" => change_volume(VolumeDirection::DOWN, args[2].as_str()).unwrap(), 
         _ => print_help()
     }
 }
 
-fn change_volume(direction: VolumeDirection) -> Result<(), ()> {
+fn change_volume(direction: VolumeDirection, ip: &str) -> Result<(), ()> {
     let client = HttpClient::new();
     if client.is_err(){
         return Err(());
@@ -26,7 +26,7 @@ fn change_volume(direction: VolumeDirection) -> Result<(), ()> {
         VolumeDirection::DOWN => volume_char = "<"
     }
     let client = client.post(
-        "http://192.168.0.150/MainZone/index.put.asp", 
+        format!("http://{}/MainZone/index.put.asp", ip), 
         format!("cmd0=PutMasterVolumeBtn/{}", volume_char)
     );
     if client.is_err() { return Err(()); }
