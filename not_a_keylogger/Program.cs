@@ -34,58 +34,73 @@ example:
     "
      + "-> not_a_keylogger.exe --bind VOLUME_MUTE DOWN \"C:\\apps\\mute.exe\" \" \"");
         }
-        private static (bool valid, Action onInvalid) checkArguments(string[] args)
+        private static (string[][] slices, Action onInvalid) checkArguments(string[] args)
         {
-            if (args.Length == 0) return (false, printHelp);
-            if (args.Length == 1 & args[0] == "--list") return (false, printUserKeys);
-            if (args.Length < 5 | (args.Length % 5) != 0) return (false, printHelp);
+            List<string[]> slices = new List<string[]>();
+            if (args.Length == 0) return (null, printHelp);
+            if (args.Length == 1 & args[0] == "--list") return (null, printUserKeys);
+            if (args.Length < 5 | (args.Length % 5) != 0) return (null, printHelp);
             for (int i = 0; i < args.Length; i++)
             {
-                if (args[i++].ToLower() != "--bind") return (false, printHelp);
-                if (!chars.ContainsKey((UserKeys)Enum.Parse(typeof(UserKeys), args[i++].ToUpper()))) return (false, printHelp);
-                if (!Enum.GetNames(typeof(KeyState)).Contains(args[i++].ToUpper())) return (false, printHelp);
-                i++; // if (!File.Exists(args[i++])) return (false, printHelp); // doesn't search PATH
-                i++; // parameters can be anything
+                int startSlice = i;
+                if (args[i++].ToLower() != "--bind") return (null, printHelp);
+                if (!chars.ContainsKey((UserKeys)Enum.Parse(typeof(UserKeys), args[i++].ToUpper()))) return (null, printHelp);
+                if (!Enum.GetNames(typeof(KeyState)).Contains(args[i++].ToUpper())) return (null, printHelp);
+                // if (!File.Exists(args[i++])) return (false, printHelp); // doesn't search PATH
+                while (args.Length > i)
+                {
+                    if (args[i] == "--bind")
+                    {
+                        --i;
+                        break;
+                    }
+                    i++;
+                }
+                slices.Add(args.Skip(startSlice).Take(i + 1).ToArray());
             }
-            return (true, null);
+            return (slices.ToArray(), null);
         }
-        private static ((Process pressed, Process released) actions, ChangeResponder<UserKeys> change)[] parseParams(string[] args)
+        private static ((Process pressed, Process released) actions, ChangeResponder<UserKeys> change)[] parseParams(string[] _args)
         {
-            var input = checkArguments(args);
-            if (!input.valid)
+            var input = checkArguments(_args);
+            if (input.slices == null)
             {
                 input.onInvalid();
                 return null;
             }
             var bindings = new Dictionary<UserKeys, ((Process pressed, Process released) actions, ChangeResponder<UserKeys> change)>();
-            for (int i = 0; i < args.Length; i++)
+            foreach (string[] args in input.slices)
             {
-                i++;
-                UserKeys key = (UserKeys)Enum.Parse(typeof(UserKeys), args[i++]);
-                KeyState state = (KeyState)Enum.Parse(typeof(KeyState), args[i++].ToUpper());
-                string filepath = args[i++];
-                string arguments = args[i++];
-                var binding = bindings.ContainsKey(key) ? bindings[key] : ((null, null), new ChangeResponder<UserKeys>(key));
-                Process process = new Process()
+                for (int i = 0; i < args.Length; i++)
                 {
-                    StartInfo = new ProcessStartInfo() 
-                    { 
-                        FileName = filepath, 
-                        WorkingDirectory = new FileInfo(filepath).DirectoryName, 
-                        Arguments = arguments, 
-                        CreateNoWindow = true, 
-                        UseShellExecute = false
+                    i++;
+                    UserKeys key = (UserKeys)Enum.Parse(typeof(UserKeys), args[i++]);
+                    KeyState state = (KeyState)Enum.Parse(typeof(KeyState), args[i++].ToUpper());
+                    string filepath = args[i++];
+                    string arguments = args[i++];
+                    var binding = bindings.ContainsKey(key) ? bindings[key] : ((null, null), new ChangeResponder<UserKeys>(key));
+                    Process process = new Process()
+                    {
+                        StartInfo = new ProcessStartInfo()
+                        {
+                            FileName = filepath,
+                            WorkingDirectory = new FileInfo(filepath).DirectoryName,
+                            Arguments = arguments,
+                            CreateNoWindow = true,
+                            UseShellExecute = false
+                        }
+                    };
+                    switch (state)
+                    {
+                        case KeyState.RELEASED:
+                            binding.actions = (binding.actions.pressed, process);
+                            break;
+                        case KeyState.PRESSED:
+                            binding.actions = (process, binding.actions.released);
+                            break;
                     }
-                };
-                switch (state) {
-                    case KeyState.RELEASED:
-                        binding.actions = (binding.actions.pressed, process);
-                        break;
-                    case KeyState.PRESSED:
-                        binding.actions = (process, binding.actions.released);
-                        break;
+                    bindings.Add(key, binding);
                 }
-                bindings.Add(key, binding);
             }
             return bindings.ToArray().Select(pair => pair.Value).ToArray();
         }
@@ -98,7 +113,15 @@ example:
         {
             Console.WriteLine($"->  {key.ToString()} {state.ToString()}");
             Console.WriteLine($"    -> running {process.StartInfo.FileName}");
-            process.Start();
+            try
+            {
+                process.Start();
+            } 
+            catch (Exception ex)
+            {
+                Console.WriteLine("\t!!\t\tERROR\t\t!!");
+                Console.WriteLine(ex.Message);
+            }
         }
         static void run(((Process pressed, Process released) actions, ChangeResponder<UserKeys> change)[] bindings)
         {
