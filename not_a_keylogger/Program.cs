@@ -72,7 +72,9 @@ example:
                     { 
                         FileName = filepath, 
                         WorkingDirectory = new FileInfo(filepath).DirectoryName, 
-                        Arguments = arguments
+                        Arguments = arguments, 
+                        CreateNoWindow = true, 
+                        UseShellExecute = false
                     }
                 };
                 switch (state) {
